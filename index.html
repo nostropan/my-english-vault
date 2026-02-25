@@ -8,44 +8,166 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
-        
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
             background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%);
             background-attachment: fixed;
             min-height: 100vh;
             margin: 0;
-            overflow-x: hidden;
+            color: white;
         }
-
-        /* 星空背景 */
         .stars-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
         .star { position: absolute; background: white; border-radius: 50%; opacity: 0.5; animation: twinkle var(--duration) infinite ease-in-out; }
         @keyframes twinkle { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .quiz-hidden { filter: blur(20px); opacity: 0.1; user-select: none; transition: all 0.6s ease; }
+        .quiz-revealed { filter: blur(0) !important; opacity: 1 !important; }
+        .btn-main { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); cursor: pointer; }
+    </style>
+</head>
+<body class="pb-20">
+    <div id="stars" class="stars-container"></div>
 
-        /* 毛玻璃卡片 */
-        .glass {
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+    <header class="container mx-auto px-6 py-16 text-center">
+        <h1 class="text-5xl md:text-7xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-300 via-purple-300 to-indigo-300">
+            Starry Vault
+        </h1>
+        
+        <div class="max-w-md mx-auto mb-10">
+            <input type="text" id="searchInput" placeholder="搜尋..." 
+                class="w-full px-6 py-4 rounded-3xl text-center bg-white/5 border border-white/10 outline-none focus:border-indigo-500 transition">
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-4">
+            <button id="quizBtn" class="btn-main px-8 py-4 rounded-full font-bold text-lg shadow-lg">
+                <i class="fas fa-eye-slash mr-2"></i>開啟測驗模式
+            </button>
+            <button id="syncBtn" class="glass px-8 py-4 rounded-full font-bold hover:bg-white/10 transition">
+                <i class="fas fa-sync-alt mr-2" id="refreshIcon"></i>同步 Notion
+            </button>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6">
+        <div id="cardContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div id="loadingStatus" class="col-span-full text-center py-20 text-slate-400 animate-pulse">
+                正在穿越星空讀取資料...
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const WORKER_URL = "https://notion-proxy.nostropan1997.workers.dev";
+        let allNotes = [];
+        let isQuizMode = false;
+
+        function createStars() {
+            const container = document.getElementById('stars');
+            for (let i = 0; i < 150; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                const size = Math.random() * 3 + 'px';
+                star.style.width = size; star.style.height = size;
+                star.style.top = Math.random() * 100 + '%';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.setProperty('--duration', (Math.random() * 3 + 2) + 's');
+                container.appendChild(star);
+            }
         }
 
-        /* 測驗模式遮蓋 */
-        .quiz-hidden {
-            filter: blur(20px);
-            opacity: 0.1;
-            user-select: none;
-            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .quiz-revealed {
-            filter: blur(0) !important;
-            opacity: 1 !important;
+        async function fetchData() {
+            const icon = document.getElementById('refreshIcon');
+            const status = document.getElementById('loadingStatus');
+            if (icon) icon.classList.add('fa-spin');
+            
+            try {
+                const response = await fetch(WORKER_URL);
+                if (!response.ok) throw new Error("Worker 回應失敗");
+                allNotes = await response.json();
+                renderCards(allNotes);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('cardContainer').innerHTML = 
+                    `<div class="col-span-full text-center text-red-400 glass p-10 rounded-3xl">
+                        連線失敗：${err.message}<br>請確認你的 Worker 網址是否正確。
+                    </div>`;
+            } finally {
+                if (icon) icon.classList.remove('fa-spin');
+            }
         }
 
-        .btn-main {
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            transition: all 0.3s ease;
-            cursor: pointer;
+        function renderCards(notes) {
+            const container = document.getElementById('cardContainer');
+            container.innerHTML = '';
+
+            notes.forEach((note, index) => {
+                const card = document.createElement('div');
+                card.className = "glass p-8 rounded-3xl hover:border-white/40 transition-all duration-300 group relative cursor-pointer";
+                
+                const typeColor = note.type?.toLowerCase().includes('v') ? 'text-rose-400' : 
+                                  note.type?.toLowerCase().includes('n') ? 'text-sky-400' : 'text-slate-400';
+
+                card.innerHTML = `
+                    <div class="flex justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-bold px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase">
+                                ${note.category || '未分類'}
+                            </span>
+                            ${note.type ? `<span class="text-xs italic font-mono ${typeColor}">${note.type}</span>` : ''}
+                        </div>
+                        <i class="far fa-copy text-slate-500 hover:text-white" onclick="event.stopPropagation(); copyText('${note.en}', this)"></i>
+                    </div>
+                    <h3 class="text-3xl font-bold mb-4">${note.en}</h3>
+                    <p id="cn-${index}" class="text-xl font-medium mb-6 ${isQuizMode ? 'quiz-hidden' : 'text-indigo-100/90'}">${note.cn}</p>
+                    ${note.example ? `
+                        <div class="mt-6 pt-5 border-t border-white/10">
+                            <p class="text-[10px] text-indigo-400/60 uppercase tracking-widest mb-2 font-bold">Example</p>
+                            <p id="ex-${index}" class="text-sm italic text-slate-400 ${isQuizMode ? 'quiz-hidden' : ''}">"${note.example}"</p>
+                        </div>
+                    ` : ''}
+                `;
+                
+                card.onclick = () => {
+                    if (isQuizMode) {
+                        document.getElementById(`cn-${index}`)?.classList.add('quiz-revealed');
+                        document.getElementById(`ex-${index}`)?.classList.add('quiz-revealed');
+                    }
+                };
+                container.appendChild(card);
+            });
         }
-        .btn-main:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(99,
+
+        // 搜尋功能
+        document.getElementById('searchInput').addEventListener('keyup', (e) => {
+            const term = e.target.value.toLowerCase();
+            const filtered = allNotes.filter(n => 
+                n.en.toLowerCase().includes(term) || n.cn.toLowerCase().includes(term)
+            );
+            renderCards(filtered);
+        });
+
+        // 測驗模式切換
+        document.getElementById('quizBtn').addEventListener('click', () => {
+            isQuizMode = !isQuizMode;
+            document.getElementById('quizBtn').innerHTML = isQuizMode ? 
+                '<i class="fas fa-eye mr-2"></i>一般模式' : '<i class="fas fa-eye-slash mr-2"></i>開啟測驗模式';
+            renderCards(allNotes);
+        });
+
+        // 同步按鈕
+        document.getElementById('syncBtn').addEventListener('click', fetchData);
+
+        function copyText(text, icon) {
+            navigator.clipboard.writeText(text);
+            icon.className = 'fas fa-check text-emerald-400';
+            setTimeout(() => icon.className = 'far fa-copy text-slate-500', 2000);
+        }
+
+        // 啟動程序
+        window.onload = () => {
+            createStars();
+            fetchData();
+        };
+    </script>
+</body>
+</html>
