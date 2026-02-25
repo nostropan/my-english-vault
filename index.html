@@ -82,4 +82,126 @@
             <button onclick="toggleQuizMode()" id="quizBtn" class="btn-main px-8 py-4 rounded-full font-bold text-lg shadow-lg">
                 <i class="fas fa-eye-slash mr-2"></i>開啟測驗模式
             </button>
-            <button onclick="fetchData()" class="glass px-8 py-4 rounded-full font-bold hover
+            <button onclick="fetchData()" class="glass px-8 py-4 rounded-full font-bold hover:bg-white/10 transition">
+                <i class="fas fa-sync-alt mr-2" id="refreshIcon"></i>同步 Notion
+            </button>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6">
+        <div id="cardContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div class="col-span-full text-center py-20 text-slate-500 animate-pulse">正在載入宇宙單字庫...</div>
+        </div>
+    </main>
+
+    <script>
+        const WORKER_URL = "https://notion-proxy.nostropan1997.workers.dev";
+        let allNotes = [];
+        let isQuizMode = false;
+
+        function createStars() {
+            const container = document.getElementById('stars');
+            for (let i = 0; i < 150; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                const size = Math.random() * 3 + 'px';
+                star.style.width = size; star.style.height = size;
+                star.style.top = Math.random() * 100 + '%';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.setProperty('--duration', (Math.random() * 3 + 2) + 's');
+                container.appendChild(star);
+            }
+        }
+
+        async function fetchData() {
+            const icon = document.getElementById('refreshIcon');
+            icon.classList.add('fa-spin');
+            try {
+                const response = await fetch(WORKER_URL);
+                allNotes = await response.json();
+                renderCards(allNotes);
+            } catch (err) {
+                document.getElementById('cardContainer').innerHTML = `<p class="col-span-full text-center text-red-400">連線失敗: ${err.message}</p>`;
+            } finally {
+                icon.classList.remove('fa-spin');
+            }
+        }
+
+        function renderCards(notes) {
+            const container = document.getElementById('cardContainer');
+            container.innerHTML = '';
+
+            notes.forEach((note, index) => {
+                const card = document.createElement('div');
+                card.className = "glass p-8 rounded-3xl hover:border-white/40 transition-all duration-300 group relative cursor-pointer hover:shadow-[0_0_40px_rgba(99,102,241,0.25)]";
+                
+                // 視覺化詞性顏色
+                const typeColor = note.type?.toLowerCase().includes('v') ? 'text-rose-400' : 
+                                  note.type?.toLowerCase().includes('n') ? 'text-sky-400' : 'text-slate-400';
+
+                card.innerHTML = `
+                    <div class="flex justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-bold px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase">
+                                ${note.category}
+                            </span>
+                            ${note.type ? `<span class="text-xs italic font-mono ${typeColor}">${note.type}</span>` : ''}
+                        </div>
+                        <button onclick="event.stopPropagation(); copyText('${note.en}', this)" class="text-slate-500 hover:text-white transition p-1">
+                            <i class="far fa-copy"></i>
+                        </button>
+                    </div>
+                    <h3 class="text-3xl font-bold text-white mb-4 group-hover:text-indigo-200 transition">${note.en}</h3>
+                    <p id="cn-${index}" class="text-xl font-medium mb-6 transition-all duration-700 ${isQuizMode ? 'quiz-hidden' : 'text-indigo-100/90'}">
+                        ${note.cn}
+                    </p>
+                    ${note.example ? `
+                        <div class="mt-6 pt-5 border-t border-white/10">
+                            <p class="text-[10px] text-indigo-400/60 uppercase tracking-widest mb-2 font-bold">Contextual Example</p>
+                            <p id="ex-${index}" class="text-sm italic leading-relaxed transition-all duration-700 ${isQuizMode ? 'quiz-hidden' : 'text-slate-400'}">
+                                "${note.example}"
+                            </p>
+                        </div>
+                    ` : ''}
+                `;
+                
+                card.onclick = () => {
+                    if (isQuizMode) {
+                        document.getElementById(`cn-${index}`)?.classList.add('quiz-revealed');
+                        document.getElementById(`ex-${index}`)?.classList.add('quiz-revealed');
+                    }
+                };
+                container.appendChild(card);
+            });
+        }
+
+        function filterNotes() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allNotes.filter(n => 
+                n.en.toLowerCase().includes(term) || 
+                n.cn.toLowerCase().includes(term) ||
+                n.category.toLowerCase().includes(term)
+            );
+            renderCards(filtered);
+        }
+
+        function toggleQuizMode() {
+            isQuizMode = !isQuizMode;
+            const btn = document.getElementById('quizBtn');
+            btn.innerHTML = isQuizMode ? 
+                '<i class="fas fa-eye mr-2"></i>回到一般模式' : '<i class="fas fa-eye-slash mr-2"></i>開啟測驗模式';
+            renderCards(allNotes);
+        }
+
+        function copyText(text, btn) {
+            navigator.clipboard.writeText(text);
+            const i = btn.querySelector('i');
+            i.className = 'fas fa-check text-emerald-400';
+            setTimeout(() => i.className = 'far fa-copy', 2000);
+        }
+
+        createStars();
+        fetchData();
+    </script>
+</body>
+</html>
