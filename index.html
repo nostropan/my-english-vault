@@ -1,184 +1,49 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Starry Vault</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+function renderCards() {
+    const container = document.getElementById('cardContainer');
+    container.innerHTML = '';
+
+    allNotes.forEach((note, index) => {
+        const card = document.createElement('div');
+        card.className = "glass p-8 rounded-3xl hover:border-white/30 transition-all group relative cursor-pointer";
         
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%);
-            overflow-x: hidden;
-            min-h-screen;
-        }
-
-        /* 星空背景動畫 */
-        .stars-container {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: -1;
-            pointer-events: none;
-        }
-        .star {
-            position: absolute;
-            background: white;
-            border-radius: 50%;
-            opacity: 0.5;
-            animation: twinkle var(--duration) infinite ease-in-out;
-        }
-        @keyframes twinkle {
-            0%, 100% { opacity: 0.3; transform: scale(1); }
-            50% { opacity: 1; transform: scale(1.2); }
-        }
-
-        /* 毛玻璃卡片 */
-        .glass {
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* 測驗模式樣式 */
-        .quiz-hidden {
-            filter: blur(8px);
-            background: rgba(255, 255, 255, 0.1);
-            color: transparent !important;
-            user-select: none;
-            cursor: pointer;
-        }
-        .quiz-revealed {
-            filter: blur(0) !important;
-            color: #94a3b8 !important; /* slate-400 */
-            background: transparent !important;
-        }
-
-        .btn-toggle {
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-        }
-    </style>
-</head>
-<body class="text-slate-100">
-
-    <div id="stars" class="stars-container"></div>
-
-    <header class="container mx-auto px-6 py-12 text-center relative">
-        <h1 class="text-4xl md:text-6xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-300 via-purple-300 to-indigo-300">
-            English Starry Vault
-        </h1>
-        
-        <div class="flex flex-wrap justify-center gap-4 mt-8">
-            <button onclick="toggleQuizMode()" id="quizBtn" class="btn-toggle px-6 py-3 rounded-full font-bold transition hover:scale-105 active:scale-95">
-                <i class="fas fa-eye-slash mr-2"></i>開啟測驗模式
-            </button>
-            <button onclick="fetchData()" class="glass px-6 py-3 rounded-full font-bold hover:bg-white/10 transition">
-                <i class="fas fa-sync-alt mr-2" id="refreshIcon"></i>同步 Notion
-            </button>
-        </div>
-    </header>
-
-    <main class="container mx-auto px-6">
-        <div id="cardContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
+        // 組合內容
+        card.innerHTML = `
+            <div class="flex justify-between mb-4">
+                <div class="flex gap-2">
+                    <span class="text-xs font-bold px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        ${note.category}
+                    </span>
+                    ${note.type ? `<span class="text-xs italic px-2 py-1 text-slate-400 font-mono">${note.type}</span>` : ''}
+                </div>
+                <button onclick="event.stopPropagation(); copyText('${note.en}', this)" class="text-slate-500 hover:text-white">
+                    <i class="far fa-copy"></i>
+                </button>
             </div>
-    </main>
 
-    <script>
-        const WORKER_URL = "https://notion-proxy.nostropan1997.workers.dev";
-        let allNotes = [];
-        let isQuizMode = false;
-
-        // 1. 生成星空
-        function createStars() {
-            const container = document.getElementById('stars');
-            for (let i = 0; i < 150; i++) {
-                const star = document.createElement('div');
-                star.className = 'star';
-                const size = Math.random() * 3 + 'px';
-                star.style.width = size;
-                star.style.height = size;
-                star.style.top = Math.random() * 100 + '%';
-                star.style.left = Math.random() * 100 + '%';
-                star.style.setProperty('--duration', (Math.random() * 3 + 2) + 's');
-                container.appendChild(star);
-            }
-        }
-
-        // 2. 抓取資料
-        async function fetchData() {
-            const icon = document.getElementById('refreshIcon');
-            icon.classList.add('fa-spin');
-            try {
-                const response = await fetch(WORKER_URL);
-                allNotes = await response.json();
-                renderCards();
-            } catch (err) {
-                console.error(err);
-            } finally {
-                icon.classList.remove('fa-spin');
-            }
-        }
-
-        // 3. 渲染卡片
-        function renderCards() {
-            const container = document.getElementById('cardContainer');
-            container.innerHTML = '';
-
-            allNotes.forEach((note, index) => {
-                const card = document.createElement('div');
-                card.className = "glass p-8 rounded-3xl hover:border-white/30 transition-all group relative";
-                card.innerHTML = `
-                    <div class="flex justify-between mb-6">
-                        <span class="text-xs font-bold px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                            ${note.category}
-                        </span>
-                        <button onclick="copyText('${note.en}', this)" class="text-slate-500 hover:text-white transition">
-                            <i class="far fa-copy"></i>
-                        </button>
-                    </div>
-                    <h3 class="text-2xl font-bold text-white mb-4">${note.en}</h3>
-                    <div class="h-px bg-white/10 w-full mb-4"></div>
-                    <p id="cn-${index}" class="cn-text text-lg font-medium transition-all duration-500 ${isQuizMode ? 'quiz-hidden' : 'text-slate-400'}">
-                        ${note.cn}
-                    </p>
-                `;
-                
-                // 點擊揭曉功能
-                card.onclick = () => {
-                    if (isQuizMode) {
-                        const text = document.getElementById(`cn-${index}`);
-                        text.classList.add('quiz-revealed');
-                    }
-                };
-                
-                container.appendChild(card);
-            });
-        }
-
-        // 4. 切換測驗模式
-        function toggleQuizMode() {
-            isQuizMode = !isQuizMode;
-            const btn = document.getElementById('quizBtn');
-            btn.innerHTML = isQuizMode ? 
-                '<i class="fas fa-eye mr-2"></i>回到一般模式' : 
-                '<i class="fas fa-eye-slash mr-2"></i>開啟測驗模式';
+            <h3 class="text-3xl font-bold text-white mb-2">${note.en}</h3>
             
-            // 重新渲染卡片狀態
-            renderCards();
-        }
+            <p id="cn-${index}" class="text-lg font-medium mb-4 transition-all duration-500 ${isQuizMode ? 'quiz-hidden' : 'text-indigo-200'}">
+                ${note.cn}
+            </p>
 
-        function copyText(text, btn) {
-            navigator.clipboard.writeText(text);
-            btn.innerHTML = '<i class="fas fa-check text-green-400"></i>';
-            setTimeout(() => btn.innerHTML = '<i class="far fa-copy"></i>', 2000);
-        }
-
-        createStars();
-        fetchData();
-    </script>
-</body>
-</html>
+            ${note.example ? `
+                <div class="mt-4 pt-4 border-t border-white/5">
+                    <p class="text-xs text-slate-500 uppercase tracking-widest mb-2">Example Sentence</p>
+                    <p id="ex-${index}" class="text-sm italic leading-relaxed transition-all duration-500 ${isQuizMode ? 'quiz-hidden' : 'text-slate-400'}">
+                        "${note.example}"
+                    </p>
+                </div>
+            ` : ''}
+        `;
+        
+        // 點擊揭曉功能 (同時揭曉中文與例句)
+        card.onclick = () => {
+            if (isQuizMode) {
+                document.getElementById(`cn-${index}`)?.classList.add('quiz-revealed');
+                document.getElementById(`ex-${index}`)?.classList.add('quiz-revealed');
+            }
+        };
+        
+        container.appendChild(card);
+    });
+}
