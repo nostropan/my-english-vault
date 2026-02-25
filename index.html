@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My English Vault</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+    <nav class="bg-indigo-900 text-white p-5 shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold"><i class="fas fa-briefcase mr-2"></i>商用英文庫</h1>
+            <button onclick="fetchData()" class="bg-indigo-700 hover:bg-indigo-600 px-4 py-2 rounded-lg text-sm transition">
+                <i class="fas fa-sync-alt" id="refreshIcon"></i> 同步 Notion
+            </button>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8">
+        <div class="max-w-xl mx-auto mb-10">
+            <div class="relative">
+                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="searchInput" onkeyup="filterNotes()" placeholder="搜尋關鍵字..." 
+                    class="w-full pl-12 pr-4 py-3 rounded-xl border-none shadow focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+        </div>
+
+        <div id="cardContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            </div>
+    </main>
+
+    <script>
+        const WORKER_URL = "https://notion-proxy.nostropan1997.workers.dev";
+        let allNotes = [];
+
+        async function fetchData() {
+            const container = document.getElementById('cardContainer');
+            const icon = document.getElementById('refreshIcon');
+            icon.classList.add('fa-spin');
+            
+            container.innerHTML = '<div class="col-span-full text-center py-10 text-slate-400">正在同步 Notion 資料...</div>';
+
+            try {
+                const response = await fetch(WORKER_URL);
+                allNotes = await response.json();
+                renderCards(allNotes);
+            } catch (err) {
+                container.innerHTML = `<div class="col-span-full text-center text-red-500">連線失敗: ${err.message}</div>`;
+            } finally {
+                icon.classList.remove('fa-spin');
+            }
+        }
+
+        function renderCards(notes) {
+            const container = document.getElementById('cardContainer');
+            container.innerHTML = '';
+
+            notes.forEach(note => {
+                const card = `
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition group">
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">${note.category}</span>
+                            <button onclick="copy('${note.en}', this)" class="text-slate-300 hover:text-indigo-500"><i class="far fa-copy"></i></button>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-800 mb-2">${note.en}</h3>
+                        <p class="text-slate-500 italic border-l-4 border-indigo-100 pl-3">${note.cn}</p>
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+        }
+
+        function filterNotes() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allNotes.filter(n => n.en.toLowerCase().includes(term) || n.cn.toLowerCase().includes(term));
+            renderCards(filtered);
+        }
+
+        function copy(text, btn) {
+            navigator.clipboard.writeText(text);
+            const i = btn.querySelector('i');
+            i.className = 'fas fa-check text-green-500';
+            setTimeout(() => i.className = 'far fa-copy text-slate-300', 2000);
+        }
+
+        // 頁面開啟時自動執行
+        fetchData();
+    </script>
+</body>
+</html>
